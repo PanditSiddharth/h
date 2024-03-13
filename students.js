@@ -5,7 +5,6 @@ import { IoMenu } from "react-icons/io5";
 import { IoIosSearch } from "react-icons/io";
 import { MdVerifiedUser } from "react-icons/md";
 import { deleteCookie, getCookie } from "cookies-next";
-import jwt from "jsonwebtoken";
 import MyImage from "next/image"
 import { useEffect, useState } from "react";
 import { toast } from "react-toastify"
@@ -19,13 +18,13 @@ const Students = () => {
   let [showStudents, setShowStudents] = useState([[], [], []])
   const [activeStudent, setActiveStudent] = useState("")
   const [fetching, setFetching] = useState(true)
+  const [activeTab, setActiveTab] = useState({ value: 0 })
+  let dtFetch = false;
+  // => {
+  //   const storedValue = localStorage.getItem("studentActiveTab");
+  //   return storedValue ? JSON.parse(storedValue) : { value: 0 };
+  // });
 
-  const [activeTab, setActiveTab] = useState(() => {
-    const storedValue = localStorage.getItem("studentActiveTab");
-    return storedValue ? JSON.parse(storedValue) : { value: 0 };
-  });
-
-  console.log(activeTab)
   const setLoadingG = useLoadingStore(state => state.setLoadingG)
   let [stData, setStData] = useState([{
     found: 0,
@@ -50,37 +49,50 @@ const Students = () => {
     const values = pagestofetch * 20
     let actTab;
 
-    setActiveTab(act=> {actTab = act; return act})
+    setActiveTab(act => { actTab = act; return act })
     // first ...
-    console.log(activeTab, stData, actTab)
+    if (dtFetch)
+      return;
+
+    console.log("fetching")
+    dtFetch = true
     paginate(1, values, activeTab.value).then((e) => {
       setFetching(true)
       setStudents(prevStudents => { prevStudents[activeTab.value] = e?.students; return prevStudents })
       setShowStudents(prevStudents => { prevStudents[activeTab.value] = e?.students; return prevStudents })
       setStData(preData => { preData[activeTab.value] = { found: e.found, totalCount: e.totalCount, page: pagestofetch }; return preData })
       setFetching(false)
+      dtFetch = false
+      const studentsElement = document.getElementById("students")
+      studentsElement.dispatchEvent(new Event('scroll'));
+
     })
       .catch((e) => {
         setFetching(false)
+        dtFetch = false
+
       })
   }
-
+  let isEventListenerAdded = false;
   useEffect(() => {
     setLoadingG(false)
     toast.dismiss()
 
-    fetchInitial()
+    if (students[activeTab.value].length < 1) {
+      document.getElementById("students").scrollTop = 0;
+      fetchInitial()
+    }
 
-    const studentsElement = document.getElementById("students")
-    const handleScroll = async ({activeTab}) => {
+    const handleScroll = async () => {
+      const studentsElement = document.getElementById("students")
       const totalHeight = studentsElement.scrollHeight
       const heightOne = studentsElement.scrollTop
       const heightTwo = studentsElement.clientHeight
 
       if (totalHeight == heightOne + heightTwo) {
 
-        console.log(activeTab, stData)
         if (stData[activeTab.value].totalCount >= 20 * stData[activeTab.value].page) {
+          console.log(stData)
           setFetching(true)
           const e = await paginate(stData[activeTab.value].page + 1, 20, activeTab)
 
@@ -98,25 +110,24 @@ const Students = () => {
       }
     }
 
-    studentsElement.addEventListener("scroll", ee => {handleScroll({activeTab})})
+
+    if (!isEventListenerAdded) {
+      const studentsElement = document.getElementById("students");
+      studentsElement.addEventListener("scroll", handleScroll);
+      isEventListenerAdded = true;
+    }
 
     return () => {
-      console.log("studentsElement: ", activeTab)
-      studentsElement.removeEventListener("scroll", ee => {handleScroll({activeTab})});
-    };
-  }, [])
 
-  useEffect(() => {
-    console.log(activeTab)
-    document.getElementById("students").scrollTop = 0;
-    if (students[activeTab.value].length < 1) {
-      fetchInitial()
-    }
-  }, [activeTab])
+      const studentsElement = document.getElementById("students");
+      studentsElement.removeEventListener("scroll", handleScroll);
+      isEventListenerAdded = false;
+    };
+  }, [activeTab.value])
 
   const handleActiveTab = async (e, v) => {
-    setActiveTab(preValue => ({value: v.value}));
-    localStorage.setItem("studentActiveTab", JSON.stringify({value: v.value}));
+    setActiveTab(preValue => ({ value: v.value }));
+    // localStorage.setItem("studentActiveTab", JSON.stringify({value: v.value}));
   }
 
   const token = getCookie("token");
@@ -220,7 +231,7 @@ const Students = () => {
                 </div>
 
                 <div className="pl-3 w-full z-10"  >
-                  <div className="h-6"  >{e.name}</div>
+                  <div className="h-6"  >{e?.name}</div>
                   <div className={"text-sm text-gray-600 dark:text-gray-300 overflow-hidden h-6 " + e?.cssGray} >{e?.about}</div>
                 </div>
                 <div className="flex flex-col justify-end pr-4"  >
